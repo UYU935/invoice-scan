@@ -588,6 +588,14 @@
     return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   }
 
+  // ===== ファイル名生成 =====
+  function buildFileName(memo, originalName) {
+    if (!memo) return originalName;
+    // ファイル名に使えない文字をアンダースコアに置換
+    const safeMemo = memo.replace(/[\/\\:\*\?"<>\|]/g, "_");
+    return safeMemo + "_" + originalName;
+  }
+
   // ===== ファイル削除 =====
   function removeFile(id) {
     selectedFiles = selectedFiles.filter(function(f) { return f.id !== id; });
@@ -641,8 +649,9 @@
         selectedFiles.map(async function({ file }) {
           const base64 = await toBase64(file);
           const mime = file.type || guessMime(file.name);
-          debugLog("変換完了: " + file.name + " mime=" + mime + " base64長=" + base64.length);
-          return { name: file.name, data: base64, mimeType: mime };
+          const name = buildFileName(memo, file.name);
+          debugLog("変換完了: " + file.name + " → " + name + " mime=" + mime + " base64長=" + base64.length);
+          return { name: name, data: base64, mimeType: mime };
         })
       );
 
