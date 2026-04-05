@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>請求書・レシート送信</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+      background: #f0f4f8;
+      color: #2d3748;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #fff;
+      border-bottom: 2px solid #bee3f8;
+      padding: 16px 20px;
+      text-align: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    header h1 {
+      font-size: 18px;
+      font-weight: 700;
+      color: #2b6cb0;
+      letter-spacing: 0.02em;
+    }
+
+    header p {
+      font-size: 12px;
+      color: #718096;
+      margin-top: 2px;
+    }
+
+    main {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px 16px 40px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #4a5568;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .card-title::before {
+      content: "";
+      display: inline-block;
+      width: 4px;
+      height: 16px;
+      background: #3182ce;
+      border-radius: 2px;
+    }
+
+    /* ボタングループ */
+    .btn-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .btn-capture,
+    .btn-file {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 20px 12px;
+      border-radius: 10px;
+      border: 2px dashed #90cdf4;
+      background: #ebf8ff;
+      color: #2b6cb0;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      min-height: 90px;
+    }
+
+    .btn-capture:hover,
+    .btn-file:hover {
+      background: #bee3f8;
+      border-color: #3182ce;
+    }
+
+    .btn-capture svg,
+    .btn-file svg {
+      width: 32px;
+      height: 32px;
+      stroke: #3182ce;
+      fill: none;
+    }
+
+    /* 非表示ファイル入力 */
+    #input-camera,
+    #input-file {
+      display: none;
+    }
+
+    /* プレビューエリア */
+    #preview-area {
+      display: none;
+      margin-top: 16px;
+    }
+
+    #preview-area.has-files {
+      display: block;
+    }
+
+    .preview-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .preview-count {
+      font-size: 13px;
+      color: #718096;
+    }
+
+    .preview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+      gap: 10px;
+    }
+
+    .preview-item {
+      position: relative;
+      border-radius: 8px;
+      overflow: hidden;
+      aspect-ratio: 1;
+      background: #e2e8f0;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    }
+
+    .preview-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .preview-item .file-icon {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      background: #edf2f7;
+      padding: 8px;
+    }
+
+    .preview-item .file-icon svg {
+      width: 28px;
+      height: 28px;
+      stroke: #718096;
+      fill: none;
+    }
+
+    .preview-item .file-icon span {
+      font-size: 9px;
+      color: #718096;
+      text-align: center;
+      word-break: break-all;
+      line-height: 1.2;
+    }
+
+    .preview-item .btn-remove {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: rgba(0,0,0,0.6);
+      border: none;
+      color: #fff;
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+
+    .preview-item .btn-remove:hover {
+      background: #e53e3e;
+    }
+
+    /* メモ欄 */
+    textarea {
+      width: 100%;
+      border: 1.5px solid #cbd5e0;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 15px;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 80px;
+      transition: border-color 0.2s;
+      color: #2d3748;
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: #3182ce;
+      box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.15);
+    }
+
+    textarea::placeholder {
+      color: #a0aec0;
+    }
+
+    /* 送信ボタン */
+    .btn-submit {
+      width: 100%;
+      padding: 18px;
+      background: #3182ce;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 17px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      letter-spacing: 0.03em;
+      box-shadow: 0 4px 12px rgba(49, 130, 206, 0.35);
+    }
+
+    .btn-submit:hover:not(:disabled) {
+      background: #2c5282;
+      box-shadow: 0 6px 16px rgba(49, 130, 206, 0.4);
+    }
+
+    .btn-submit:disabled {
+      background: #a0aec0;
+      box-shadow: none;
+      cursor: not-allowed;
+    }
+
+    /* ローディング */
+    #loading {
+      display: none;
+      text-align: center;
+      padding: 20px;
+    }
+
+    #loading.show {
+      display: block;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid #bee3f8;
+      border-top-color: #3182ce;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 10px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    #loading p {
+      font-size: 14px;
+      color: #4a5568;
+    }
+
+    /* メッセージ */
+    #message {
+      display: none;
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 16px;
+      font-size: 15px;
+      font-weight: 600;
+      text-align: center;
+    }
+
+    #message.show {
+      display: block;
+    }
+
+    #message.success {
+      background: #f0fff4;
+      border: 1.5px solid #68d391;
+      color: #276749;
+    }
+
+    #message.error {
+      background: #fff5f5;
+      border: 1.5px solid #fc8181;
+      color: #9b2c2c;
+    }
+
+    /* ファイルなし警告 */
+    .no-file-hint {
+      font-size: 12px;
+      color: #e53e3e;
+      margin-top: 6px;
+      display: none;
+    }
+
+    .no-file-hint.show {
+      display: block;
+    }
+
+    /* デバッグログエリア */
+    #debug-area {
+      margin-top: 16px;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1.5px solid #e2e8f0;
+    }
+
+    #debug-toggle {
+      width: 100%;
+      padding: 10px 14px;
+      background: #edf2f7;
+      border: none;
+      font-size: 12px;
+      color: #718096;
+      text-align: left;
+      cursor: pointer;
+      font-family: inherit;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    #debug-log {
+      display: none;
+      background: #1a202c;
+      color: #68d391;
+      font-size: 11px;
+      font-family: monospace;
+      padding: 10px 12px;
+      max-height: 200px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    #debug-log.open {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>請求書・レシート送信</h1>
+  <p>撮影またはファイルを選択してアップロード</p>
+</header>
+
+<main>
+
+  <!-- メッセージ表示 -->
+  <div id="message"></div>
+
+  <!-- 撮影・選択 -->
+  <div class="card">
+    <div class="card-title">ファイルを追加</div>
+
+    <div class="btn-group">
+      <label class="btn-capture" for="input-camera">
+        <svg viewBox="0 0 24 24" stroke-width="1.8">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+          <circle cx="12" cy="13" r="4"/>
+        </svg>
+        カメラで撮影
+      </label>
+      <!-- iOS Safariではcaptureとmultipleを同時指定するとmultipleが無視されるため、captureのみ指定 -->
+      <input type="file" id="input-camera" accept="image/*" capture="environment">
+
+      <label class="btn-file" for="input-file">
+        <svg viewBox="0 0 24 24" stroke-width="1.8">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        ファイル選択
+      </label>
+      <input type="file" id="input-file" accept="image/*,application/pdf" multiple>
+    </div>
+
+    <p id="no-file-hint" class="no-file-hint">ファイルを1枚以上選択してください。</p>
+
+    <!-- プレビュー -->
+    <div id="preview-area">
+      <div class="preview-header">
+        <span class="preview-count" id="preview-count"></span>
+      </div>
+      <div class="preview-grid" id="preview-grid"></div>
+    </div>
+  </div>
+
+  <!-- メモ -->
+  <div class="card">
+    <div class="card-title">メモ（任意）</div>
+    <textarea id="memo" placeholder="例：4月分の交通費レシート、〇〇クリニック宛など"></textarea>
+  </div>
+
+  <!-- ローディング -->
+  <div id="loading">
+    <div class="spinner"></div>
+    <p>送信中です。しばらくお待ちください…</p>
+  </div>
+
+  <!-- 送信ボタン -->
+  <button class="btn-submit" id="btn-submit" onclick="submitFiles()">
+    送信する
+  </button>
+
+  <!-- デバッグログ -->
+  <div id="debug-area">
+    <button id="debug-toggle" onclick="toggleDebug()">
+      <span>デバッグログ</span>
+      <span id="debug-arrow">▼</span>
+    </button>
+    <div id="debug-log"></div>
+  </div>
+
+</main>
+
+<script>
+  // ===== 定数 =====
+  const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzWZty1VGzkdM7JvvaxLviCJ6cUGtW_85rR3VOmvpq9yFv4oHLxyFlVNOdcdWmoM7154w/exec";
+
+  // ===== 状態管理 =====
+  let selectedFiles = []; // { file: File, id: number } の配列
+  let fileIdCounter = 0;
+
+  // ===== デバッグログ =====
+  function debugLog(msg) {
+    const ts = new Date().toLocaleTimeString("ja-JP");
+    const line = `[${ts}] ${msg}`;
+    console.log(line);
+    const el = document.getElementById("debug-log");
+    el.textContent += line + "\n";
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function toggleDebug() {
+    const log = document.getElementById("debug-log");
+    const arrow = document.getElementById("debug-arrow");
+    const open = log.classList.toggle("open");
+    arrow.textContent = open ? "▲" : "▼";
+  }
+
+  // ===== グローバルエラーキャッチ（未処理の例外をUIに表示） =====
+  window.addEventListener("error", function (e) {
+    debugLog("window.onerror: " + e.message + " (" + e.filename + ":" + e.lineno + ")");
+  });
+
+  window.addEventListener("unhandledrejection", function (e) {
+    const msg = e.reason ? (e.reason.message || String(e.reason)) : "UnhandledRejection";
+    debugLog("UnhandledRejection: " + msg);
+    showMessage("error", "予期しないエラーが発生しました。\n詳細: " + msg);
+  });
+
+  // ===== ファイル追加処理 =====
+  function addFiles(fileList) {
+    const arr = Array.from(fileList);
+    debugLog("ファイル追加: " + arr.map(f => f.name + " (" + f.type + ", " + f.size + "bytes)").join(", "));
+    arr.forEach(file => {
+      selectedFiles.push({ file, id: fileIdCounter++ });
+    });
+    renderPreviews();
+  }
+
+  document.getElementById("input-camera").addEventListener("change", function () {
+    if (this.files && this.files.length > 0) {
+      addFiles(this.files);
+    } else {
+      debugLog("input-camera: ファイルが選択されませんでした");
+    }
+    this.value = "";
+  });
+
+  document.getElementById("input-file").addEventListener("change", function () {
+    if (this.files && this.files.length > 0) {
+      addFiles(this.files);
+    } else {
+      debugLog("input-file: ファイルが選択されませんでした");
+    }
+    this.value = "";
+  });
+
+  // ===== プレビュー描画 =====
+  function renderPreviews() {
+    const grid = document.getElementById("preview-grid");
+    const area = document.getElementById("preview-area");
+    const count = document.getElementById("preview-count");
+
+    grid.innerHTML = "";
+
+    if (selectedFiles.length === 0) {
+      area.classList.remove("has-files");
+      return;
+    }
+
+    area.classList.add("has-files");
+    count.textContent = "選択中: " + selectedFiles.length + " ファイル";
+
+    selectedFiles.forEach(function({ file, id }) {
+      const item = document.createElement("div");
+      item.className = "preview-item";
+      item.dataset.id = id;
+
+      // mimeTypeが空の場合、拡張子から判定
+      const mime = file.type || guessMime(file.name);
+
+      if (mime.startsWith("image/")) {
+        const img = document.createElement("img");
+        img.alt = file.name;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          img.src = e.target.result;
+          debugLog("プレビュー表示: " + file.name);
+        };
+        reader.onerror = function(e) {
+          debugLog("プレビュー読み込みエラー: " + file.name + " " + e);
+        };
+        reader.readAsDataURL(file);
+        item.appendChild(img);
+      } else {
+        const icon = document.createElement("div");
+        icon.className = "file-icon";
+        icon.innerHTML =
+          '<svg viewBox="0 0 24 24" stroke-width="1.5">' +
+            '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>' +
+            '<polyline points="14 2 14 8 20 8"/>' +
+          '</svg>' +
+          '<span>' + escapeHtml(file.name) + '</span>';
+        item.appendChild(icon);
+      }
+
+      const btnRemove = document.createElement("button");
+      btnRemove.className = "btn-remove";
+      btnRemove.innerHTML = "&#x2715;";
+      btnRemove.title = "削除";
+      btnRemove.addEventListener("click", function() { removeFile(id); });
+      item.appendChild(btnRemove);
+
+      grid.appendChild(item);
+    });
+  }
+
+  function guessMime(name) {
+    const ext = (name.split(".").pop() || "").toLowerCase();
+    const map = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
+                  gif: "image/gif", webp: "image/webp", pdf: "application/pdf",
+                  heic: "image/heic", heif: "image/heif" };
+    return map[ext] || "application/octet-stream";
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+
+  // ===== ファイル削除 =====
+  function removeFile(id) {
+    selectedFiles = selectedFiles.filter(function(f) { return f.id !== id; });
+    debugLog("ファイル削除 id=" + id + " 残り" + selectedFiles.length + "件");
+    renderPreviews();
+  }
+
+  // ===== Base64変換 =====
+  function toBase64(file) {
+    return new Promise(function(resolve, reject) {
+      const reader = new FileReader();
+      reader.onload = function() {
+        // "data:image/jpeg;base64,XXXX" → "XXXX" のみ取り出す
+        const parts = reader.result.split(",");
+        if (parts.length < 2) {
+          reject(new Error("Base64変換失敗: data URL形式が不正 - " + file.name));
+          return;
+        }
+        resolve(parts[1]);
+      };
+      reader.onerror = function(e) {
+        reject(new Error("FileReader エラー: " + file.name));
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // ===== 送信処理 =====
+  async function submitFiles() {
+    const hint = document.getElementById("no-file-hint");
+    hideMessage();
+
+    if (selectedFiles.length === 0) {
+      hint.classList.add("show");
+      debugLog("送信中止: ファイル未選択");
+      return;
+    }
+    hint.classList.remove("show");
+
+    const memo = document.getElementById("memo").value.trim();
+    const submitBtn = document.getElementById("btn-submit");
+    const loading = document.getElementById("loading");
+
+    submitBtn.disabled = true;
+    loading.classList.add("show");
+
+    try {
+      debugLog("Base64変換開始 " + selectedFiles.length + "ファイル");
+
+      const filesData = await Promise.all(
+        selectedFiles.map(async function({ file }) {
+          const base64 = await toBase64(file);
+          const mime = file.type || guessMime(file.name);
+          debugLog("変換完了: " + file.name + " mime=" + mime + " base64長=" + base64.length);
+          return { name: file.name, data: base64, mimeType: mime };
+        })
+      );
+
+      const payload = { files: filesData, memo: memo };
+
+      // デバッグ用: 送信内容をコンソールに出力（base64は先頭50文字のみ）
+      const debugPayload = {
+        files: filesData.map(function(f) {
+          return { name: f.name, mimeType: f.mimeType, dataLength: f.data.length, dataPreview: f.data.substring(0, 50) + "..." };
+        }),
+        memo: memo
+      };
+      console.log("[DEBUG] 送信payload:", debugPayload);
+      debugLog("送信開始 URL=" + APPS_SCRIPT_URL);
+      debugLog("payload files=" + filesData.length + " memo=\"" + memo + "\"");
+
+      // ---- CORSプリフライト回避のため Content-Type: text/plain で送信 ----
+      // application/json だとOPTIONSリクエストが発生しGASがCORSエラーになる。
+      // text/plain はsimple requestのため、プリフライト不要。
+      // GAS側では e.postData.contents でJSON文字列として受け取れる。
+      const response = await fetch(APPS_SCRIPT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify(payload),
+      });
+
+      debugLog("レスポンス受信: HTTP " + response.status + " " + response.statusText);
+
+      const text = await response.text();
+      debugLog("レスポンス内容: " + text.substring(0, 200));
+
+      let result;
+      try {
+        result = JSON.parse(text);
+      } catch (_) {
+        // JSONでなくてもHTTP 200なら成功扱い
+        result = { status: response.ok ? "success" : "error", message: text };
+      }
+
+      if (response.ok && result.status !== "error") {
+        debugLog("送信成功");
+        showMessage("success", "送信が完了しました（" + filesData.length + "ファイル）");
+        selectedFiles = [];
+        document.getElementById("memo").value = "";
+        renderPreviews();
+      } else {
+        const errMsg = result.message || ("HTTPステータス: " + response.status);
+        debugLog("送信失敗: " + errMsg);
+        showMessage("error", "送信に失敗しました。\nエラー: " + errMsg);
+      }
+
+    } catch (err) {
+      // fetchそのものが失敗（ネットワーク断、CORSなど）
+      const errDetail = err.name + ": " + err.message;
+      console.error("[ERROR]", err);
+      debugLog("fetch例外: " + errDetail);
+
+      let userMsg = "通信エラーが発生しました。\n";
+      if (err.name === "TypeError") {
+        userMsg += "原因: ネットワーク接続またはCORSエラーの可能性があります。\n詳細: " + err.message;
+      } else {
+        userMsg += "詳細: " + errDetail;
+      }
+      showMessage("error", userMsg);
+    } finally {
+      submitBtn.disabled = false;
+      loading.classList.remove("show");
+    }
+  }
+
+  // ===== メッセージ表示 =====
+  function showMessage(type, text) {
+    const el = document.getElementById("message");
+    el.className = "show " + type;
+    el.textContent = text;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  function hideMessage() {
+    const el = document.getElementById("message");
+    el.className = "";
+    el.textContent = "";
+  }
+
+  debugLog("アプリ初期化完了");
+</script>
+
+</body>
+</html>
