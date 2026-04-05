@@ -454,7 +454,7 @@
 
 <script>
   // ===== 定数 =====
-  const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzWZty1VGzkdM7JvvaxLviCJ6cUGtW_85rR3VOmvpq9yFv4oHLxyFlVNOdcdWmoM7154w/exec";
+  const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz8kUtPq5E4V5oqepVbDj7Drq7oK6c5ihd6LQmXDx2FWjo-p-4fVT_cztLvCWgBJ-lM9w/exec";
 
   // ===== 状態管理 =====
   let selectedFiles = []; // { file: File, id: number } の配列
@@ -603,21 +603,63 @@
     renderPreviews();
   }
 
-  // ===== Base64変換 =====
-  function toBase64(file) {
+  // ===== 画像リサイズ＋Base64変換（長辺1280px以内、JPEG品質0.82） =====
+  const MAX_LONG_SIDE = 1280;
+  const JPEG_QUALITY  = 0.82;
+
+  function resizeAndEncode(file) {
+    const mime = file.type || guessMime(file.name);
+    const isImage = mime.startsWith("image/");
+
+    // PDF等の非画像はリサイズせずそのままBase64化
+    if (!isImage) {
+      return new Promise(function(resolve, reject) {
+        const reader = new FileReader();
+        reader.onload = function() {
+          const parts = reader.result.split(",");
+          if (parts.length < 2) { reject(new Error("Base64変換失敗: " + file.name)); return; }
+          resolve({ base64: parts[1], outMime: mime });
+        };
+        reader.onerror = function() { reject(new Error("FileReader エラー: " + file.name)); };
+        reader.readAsDataURL(file);
+      });
+    }
+
     return new Promise(function(resolve, reject) {
       const reader = new FileReader();
-      reader.onload = function() {
-        // "data:image/jpeg;base64,XXXX" → "XXXX" のみ取り出す
-        const parts = reader.result.split(",");
-        if (parts.length < 2) {
-          reject(new Error("Base64変換失敗: data URL形式が不正 - " + file.name));
-          return;
-        }
-        resolve(parts[1]);
-      };
-      reader.onerror = function(e) {
-        reject(new Error("FileReader エラー: " + file.name));
+      reader.onerror = function() { reject(new Error("FileReader エラー: " + file.name)); };
+      reader.onload = function(ev) {
+        const img = new Image();
+        img.onerror = function() { reject(new Error("Image読み込みエラー: " + file.name)); };
+        img.onload = function() {
+          const origW = img.naturalWidth;
+          const origH = img.naturalHeight;
+          const longSide = Math.max(origW, origH);
+
+          let w = origW, h = origH;
+          if (longSide > MAX_LONG_SIDE) {
+            const ratio = MAX_LONG_SIDE / longSide;
+            w = Math.round(origW * ratio);
+            h = Math.round(origH * ratio);
+          }
+
+          const canvas = document.createElement("canvas");
+          canvas.width  = w;
+          canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, w, h);
+
+          const outMime = "image/jpeg";
+          const dataUrl = canvas.toDataURL(outMime, JPEG_QUALITY);
+          const parts   = dataUrl.split(",");
+          if (parts.length < 2) { reject(new Error("canvas変換失敗: " + file.name)); return; }
+
+          const base64Len = parts[1].length;
+          const kb = Math.round(base64Len * 3 / 4 / 1024);
+          debugLog("リサイズ: " + origW + "x" + origH + " → " + w + "x" + h + " 約" + kb + "KB");
+          resolve({ base64: parts[1], outMime: outMime });
+        };
+        img.src = ev.target.result;
       };
       reader.readAsDataURL(file);
     });
@@ -647,26 +689,28 @@
 
       const filesData = await Promise.all(
         selectedFiles.map(async function({ file }) {
-          const base64 = await toBase64(file);
-          const mime = file.type || guessMime(file.name);
+          const { base64, outMime } = await resizeAndEncode(file);
           const name = buildFileName(memo, file.name);
-          debugLog("変換完了: " + file.name + " → " + name + " mime=" + mime + " base64長=" + base64.length);
-          return { name: name, data: base64, mimeType: mime };
+          const kb = Math.round(base64.length * 3 / 4 / 1024);
+          debugLog("変換完了: 元=" + file.name + " 送信名=" + name + " mime=" + outMime + " 約" + kb + "KB");
+          return { name: name, data: base64, mimeType: outMime };
         })
       );
 
       const payload = { files: filesData, memo: memo };
 
-      // デバッグ用: 送信内容をコンソールに出力（base64は先頭50文字のみ）
-      const debugPayload = {
-        files: filesData.map(function(f) {
-          return { name: f.name, mimeType: f.mimeType, dataLength: f.data.length, dataPreview: f.data.substring(0, 50) + "..." };
-        }),
-        memo: memo
-      };
-      console.log("[DEBUG] 送信payload:", debugPayload);
+      // ★ 送信直前：JSONに含まれる実際のファイル名を全件ログ出力
+      debugLog("--- 送信JSONのファイル名確認 ---");
+      filesData.forEach(function(f, i) {
+        const kb = Math.round(f.data.length * 3 / 4 / 1024);
+        debugLog("  [" + i + "] name=\"" + f.name + "\" mime=" + f.mimeType + " 約" + kb + "KB");
+      });
+      debugLog("  memo=\"" + memo + "\"");
+      debugLog("--------------------------------");
+      console.log("[DEBUG] 送信payload:", filesData.map(function(f) {
+        return { name: f.name, mimeType: f.mimeType, kb: Math.round(f.data.length * 3 / 4 / 1024) };
+      }));
       debugLog("送信開始 URL=" + APPS_SCRIPT_URL);
-      debugLog("payload files=" + filesData.length + " memo=\"" + memo + "\"");
 
       // ---- CORSプリフライト回避のため Content-Type: text/plain で送信 ----
       // application/json だとOPTIONSリクエストが発生しGASがCORSエラーになる。
