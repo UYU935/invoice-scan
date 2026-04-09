@@ -334,6 +334,91 @@
       display: block;
     }
 
+    /* カメラモーダル */
+    #camera-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #000;
+      z-index: 1000;
+      flex-direction: column;
+    }
+
+    #camera-modal.open {
+      display: flex;
+    }
+
+    #camera-video {
+      flex: 1;
+      width: 100%;
+      object-fit: cover;
+      background: #000;
+    }
+
+    .camera-controls {
+      background: #111;
+      padding: 20px 24px 36px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .btn-camera-close {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.15);
+      border: 2px solid rgba(255,255,255,0.4);
+      color: #fff;
+      font-size: 22px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .btn-shutter {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: #fff;
+      border: 4px solid rgba(255,255,255,0.5);
+      cursor: pointer;
+      flex-shrink: 0;
+      box-shadow: 0 0 0 4px rgba(255,255,255,0.25);
+      transition: transform 0.1s;
+    }
+
+    .btn-shutter:active {
+      transform: scale(0.92);
+    }
+
+    .camera-count {
+      width: 52px;
+      text-align: center;
+      color: rgba(255,255,255,0.8);
+      font-size: 13px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    #camera-flash {
+      position: fixed;
+      inset: 0;
+      background: #fff;
+      z-index: 1001;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s ease-out;
+    }
+
+    #camera-flash.flash {
+      opacity: 1;
+      transition: none;
+    }
+
     /* デバッグログエリア */
     #debug-area {
       margin-top: 16px;
@@ -392,15 +477,13 @@
     <div class="card-title">ファイルを追加</div>
 
     <div class="btn-group">
-      <label class="btn-capture" for="input-camera">
+      <button class="btn-capture" onclick="openCamera()">
         <svg viewBox="0 0 24 24" stroke-width="1.8">
           <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
           <circle cx="12" cy="13" r="4"/>
         </svg>
         カメラで撮影
-      </label>
-      <!-- iOS Safariではcaptureとmultipleを同時指定するとmultipleが無視されるため、captureのみ指定 -->
-      <input type="file" id="input-camera" accept="image/*" capture="environment">
+      </button>
 
       <label class="btn-file" for="input-file">
         <svg viewBox="0 0 24 24" stroke-width="1.8">
@@ -451,6 +534,17 @@
   </div>
 
 </main>
+
+<!-- カメラモーダル -->
+<div id="camera-modal">
+  <video id="camera-video" autoplay playsinline muted></video>
+  <div class="camera-controls">
+    <button class="btn-camera-close" onclick="closeCamera()" title="閉じる">✕</button>
+    <button class="btn-shutter" onclick="capturePhoto()" title="撮影"></button>
+    <div class="camera-count" id="camera-count"></div>
+  </div>
+</div>
+<div id="camera-flash"></div>
 
 <script>
   // ===== 定数 =====
@@ -778,6 +872,86 @@
     const el = document.getElementById("message");
     el.className = "";
     el.textContent = "";
+  }
+
+  // ===== インカメラ =====
+  let cameraStream = null;
+
+  async function openCamera() {
+    debugLog("カメラ起動開始");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: false
+      });
+      cameraStream = stream;
+      const video = document.getElementById("camera-video");
+      video.srcObject = stream;
+      document.getElementById("camera-modal").classList.add("open");
+      updateCameraCount();
+      debugLog("カメラ起動成功");
+    } catch (err) {
+      debugLog("カメラ起動失敗: " + err.name + " " + err.message);
+      // getUserMediaが使えない端末はフォールバック：従来のinput[capture]
+      const inp = document.createElement("input");
+      inp.type = "file";
+      inp.accept = "image/*";
+      inp.capture = "environment";
+      inp.addEventListener("change", function() {
+        if (inp.files && inp.files.length > 0) addFiles(inp.files);
+      });
+      inp.click();
+    }
+  }
+
+  function closeCamera() {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(function(t) { t.stop(); });
+      cameraStream = null;
+    }
+    const video = document.getElementById("camera-video");
+    video.srcObject = null;
+    document.getElementById("camera-modal").classList.remove("open");
+    debugLog("カメラ終了");
+  }
+
+  function capturePhoto() {
+    const video = document.getElementById("camera-video");
+    if (!video.videoWidth) return;
+
+    // フラッシュ演出
+    const flash = document.getElementById("camera-flash");
+    flash.classList.add("flash");
+    requestAnimationFrame(function() {
+      requestAnimationFrame(function() {
+        flash.classList.remove("flash");
+      });
+    });
+
+    const canvas = document.createElement("canvas");
+    canvas.width  = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d").drawImage(video, 0, 0);
+
+    canvas.toBlob(function(blob) {
+      if (!blob) { debugLog("toBlob失敗"); return; }
+      const now = new Date();
+      const ts = now.getFullYear() +
+        String(now.getMonth()+1).padStart(2,"0") +
+        String(now.getDate()).padStart(2,"0") + "_" +
+        String(now.getHours()).padStart(2,"0") +
+        String(now.getMinutes()).padStart(2,"0") +
+        String(now.getSeconds()).padStart(2,"0");
+      const file = new File([blob], "photo_" + ts + ".jpg", { type: "image/jpeg" });
+      addFiles([file]);
+      updateCameraCount();
+      debugLog("撮影完了: " + file.name);
+    }, "image/jpeg", 0.92);
+  }
+
+  function updateCameraCount() {
+    const el = document.getElementById("camera-count");
+    el.textContent = selectedFiles.length > 0 ? selectedFiles.length + "枚" : "";
   }
 
   debugLog("アプリ初期化完了");
