@@ -553,6 +553,7 @@
   // ===== 状態管理 =====
   let selectedFiles = []; // { file: File, id: number } の配列
   let fileIdCounter = 0;
+  let cameraStream = null;
 
   // ===== デバッグログ =====
   function debugLog(msg) {
@@ -875,8 +876,6 @@
   }
 
   // ===== インカメラ =====
-  let cameraStream = null;
-
   async function openCamera() {
     debugLog("カメラ起動開始");
     try {
