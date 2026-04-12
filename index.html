@@ -549,6 +549,8 @@
 <script>
   // ===== 定数 =====
   const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzeOTSJJao2HIKM82-TZBSEdZh4ugjLHOE81V09NVFnqd6_pEqA7dgKNKRaNxdRmBQpSQ/exec";
+  const MAX_LONG_SIDE = 1280;
+  const JPEG_QUALITY  = 0.82;
 
   // ===== 状態管理 =====
   let selectedFiles = []; // { file: File, id: number } の配列
@@ -699,9 +701,6 @@
   }
 
   // ===== 画像リサイズ＋Base64変換（長辺1280px以内、JPEG品質0.82） =====
-  const MAX_LONG_SIDE = 1280;
-  const JPEG_QUALITY  = 0.82;
-
   function resizeAndEncode(file) {
     const mime = file.type || guessMime(file.name);
     const isImage = mime.startsWith("image/");
