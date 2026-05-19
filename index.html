@@ -458,6 +458,84 @@
     #debug-log.open {
       display: block;
     }
+
+    /* ライトボックス */
+    #lightbox {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.88);
+      z-index: 2000;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #lightbox.open {
+      display: flex;
+    }
+
+    #lightbox-img {
+      max-width: 92vw;
+      max-height: 80vh;
+      object-fit: contain;
+      border-radius: 8px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+    }
+
+    #lightbox-file-icon {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      color: #fff;
+    }
+
+    #lightbox-file-icon svg {
+      width: 64px;
+      height: 64px;
+      stroke: #90cdf4;
+      fill: none;
+    }
+
+    #lightbox-filename {
+      font-size: 14px;
+      color: #e2e8f0;
+      word-break: break-all;
+      max-width: 80vw;
+      text-align: center;
+      margin-top: 12px;
+    }
+
+    #lightbox-close {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.15);
+      border: 2px solid rgba(255,255,255,0.4);
+      color: #fff;
+      font-size: 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2001;
+    }
+
+    #lightbox-close:hover {
+      background: rgba(255,255,255,0.28);
+    }
+
+    .preview-item {
+      cursor: pointer;
+    }
+
+    .preview-item:active {
+      opacity: 0.8;
+    }
   </style>
 </head>
 <body>
@@ -546,6 +624,19 @@
 </div>
 <div id="camera-flash"></div>
 
+<!-- ライトボックス -->
+<div id="lightbox" onclick="closeLightbox()">
+  <button id="lightbox-close" onclick="closeLightbox()" title="閉じる">✕</button>
+  <img id="lightbox-img" src="" alt="" style="display:none;" onclick="event.stopPropagation()">
+  <div id="lightbox-file-icon" style="display:none;" onclick="event.stopPropagation()">
+    <svg viewBox="0 0 24 24" stroke-width="1.5">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+    </svg>
+  </div>
+  <div id="lightbox-filename"></div>
+</div>
+
 <script>
   // ===== 定数 =====
   const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzeOTSJJao2HIKM82-TZBSEdZh4ugjLHOE81V09NVFnqd6_pEqA7dgKNKRaNxdRmBQpSQ/exec";
@@ -594,15 +685,6 @@
     });
     renderPreviews();
   }
-
-  document.getElementById("input-camera").addEventListener("change", function () {
-    if (this.files && this.files.length > 0) {
-      addFiles(this.files);
-    } else {
-      debugLog("input-camera: ファイルが選択されませんでした");
-    }
-    this.value = "";
-  });
 
   document.getElementById("input-file").addEventListener("change", function () {
     if (this.files && this.files.length > 0) {
@@ -662,11 +744,17 @@
         item.appendChild(icon);
       }
 
+      // サムネイルタップで拡大
+      item.addEventListener("click", function(e) {
+        if (e.target.classList.contains("btn-remove")) return;
+        openLightbox(file);
+      });
+
       const btnRemove = document.createElement("button");
       btnRemove.className = "btn-remove";
       btnRemove.innerHTML = "&#x2715;";
       btnRemove.title = "削除";
-      btnRemove.addEventListener("click", function() { removeFile(id); });
+      btnRemove.addEventListener("click", function(e) { e.stopPropagation(); removeFile(id); });
       item.appendChild(btnRemove);
 
       grid.appendChild(item);
@@ -951,6 +1039,44 @@
     const el = document.getElementById("camera-count");
     el.textContent = selectedFiles.length > 0 ? selectedFiles.length + "枚" : "";
   }
+
+  // ===== ライトボックス =====
+  function openLightbox(file) {
+    const lightbox = document.getElementById("lightbox");
+    const lbImg = document.getElementById("lightbox-img");
+    const lbIcon = document.getElementById("lightbox-file-icon");
+    const lbName = document.getElementById("lightbox-filename");
+    const mime = file.type || guessMime(file.name);
+
+    lbImg.style.display = "none";
+    lbIcon.style.display = "none";
+    lbName.textContent = file.name;
+
+    if (mime.startsWith("image/")) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        lbImg.src = e.target.result;
+        lbImg.style.display = "block";
+      };
+      reader.readAsDataURL(file);
+    } else {
+      lbIcon.style.display = "flex";
+    }
+
+    lightbox.classList.add("open");
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeLightbox() {
+    document.getElementById("lightbox").classList.remove("open");
+    document.getElementById("lightbox-img").src = "";
+    document.body.style.overflow = "";
+  }
+
+  // Escキーでライトボックスを閉じる
+  document.addEventListener("keydown", function(e) {
+    if (e.key === "Escape") closeLightbox();
+  });
 
   debugLog("アプリ初期化完了");
 </script>
