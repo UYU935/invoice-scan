@@ -5,21 +5,28 @@
  *   POST (Content-Type: text/plain)
  *   body = JSON 文字列 { files: [ { name, data(Base64), mimeType } ], memo }
  *
- * 役割: 受け取った各ファイルをBase64デコードし、指定ドライブフォルダに保存する。
+ * 役割:
+ *   受け取った各ファイルを、指定したドライブフォルダに保存するだけ。
+ *   （Chatworkへの通知は行いません。先方へはドライブのフォルダリンクを
+ *     手動で送る運用です。）
+ *
+ * ============================================================
+ * 【設定する箇所は1つだけ】
+ *   ① FOLDER_ID … 保存先ドライブフォルダID（設定済み）
+ * ============================================================
  *
  * 【設置手順】
- *   1. このコードを丸ごとコピーして、新しいGASプロジェクトに貼り付ける
- *   2. 下の FOLDER_ID を、保存先ドライブフォルダのIDに書き換える
- *      (フォルダをブラウザで開いたURL末尾の文字列がフォルダID:
- *       https://drive.google.com/drive/folders/【ここがフォルダID】 )
- *   3. デプロイ → 新しいデプロイ → 種類「ウェブアプリ」
+ *   1. このコードを丸ごとGASプロジェクトに貼り付ける
+ *   2. デプロイ → デプロイを管理 → 鉛筆マーク →
+ *      バージョン「新バージョン」→ デプロイ
+ *      （既存デプロイを更新すれば starbridge.html のURLはそのまま）
  *      - 実行ユーザー: 自分
  *      - アクセスできるユーザー: 全員        ← 必ず「全員」(匿名OK)
- *   4. 表示された /exec URL を starbridge.html の APPS_SCRIPT_URL に貼る
  */
 
-// ★ 保存先フォルダIDをここに設定 ★
+// ① 保存先フォルダID（設定済み）
 var FOLDER_ID = "1jzl5tYZJ9ajJ-mxsW4-R0bE5cXh8Gvcf";
+
 
 function doPost(e) {
   try {
@@ -29,31 +36,29 @@ function doPost(e) {
 
     var payload = JSON.parse(e.postData.contents);
     var files = payload.files || [];
-    var memo  = payload.memo || "";
 
     if (files.length === 0) {
       return jsonOut({ status: "error", message: "ファイルが含まれていません" });
     }
 
-    var folder = DriveApp.getFolderById(FOLDER_ID);
     var saved = [];
+    var folder = DriveApp.getFolderById(FOLDER_ID);
 
     for (var i = 0; i < files.length; i++) {
       var f = files[i];
       var name = f.name || ("file_" + (i + 1));
       var mime = f.mimeType || "application/octet-stream";
 
-      // Base64 → バイナリ
+      // Base64 → バイナリ → ドライブに保存
       var bytes = Utilities.base64Decode(f.data);
       var blob = Utilities.newBlob(bytes, mime, name);
-
-      var created = folder.createFile(blob);
-      saved.push(created.getName());
+      folder.createFile(blob);
+      saved.push(name);
     }
 
     return jsonOut({
       status: "success",
-      message: saved.length + "件保存しました",
+      message: saved.length + "件 ドライブに保存しました",
       saved: saved
     });
 
@@ -62,7 +67,7 @@ function doPost(e) {
   }
 }
 
-// 動作確認用 (ブラウザでURLを開いたとき)
+// 動作確認用（ブラウザでURLを開いたとき）
 function doGet() {
   return jsonOut({ status: "ok", message: "スターブリッジ受信GAS 稼働中" });
 }
